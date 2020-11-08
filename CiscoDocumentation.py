@@ -30,8 +30,8 @@ def load_wireshark_oui():
         import requests
         url = 'https://code.wireshark.org/review/gitweb?p=wireshark.git;a=blob_plain;f=manuf'
         myfile = requests.get(url)
-        open('../../../Downloads/SSH/wireshark_oui_dl.txt', 'wb').write(myfile.content)
-        f_in = open('../../../Downloads/SSH/wireshark_oui_dl.txt', 'r')
+        open('./wireshark_oui_dl.txt', 'wb').write(myfile.content)
+        f_in = open('./wireshark_oui_dl.txt', 'r')
         oui = filter(None, (line.partition('#')[0].rstrip() for line in f_in))
         oui_dict = dict()
         for line in oui:
