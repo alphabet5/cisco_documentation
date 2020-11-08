@@ -1,0 +1,4 @@
+device_type,ip,username,password,enable secret
+cisco_ios,
+cisco_ios_telnet,
+cisco_s300
