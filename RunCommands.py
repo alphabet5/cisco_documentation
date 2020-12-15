@@ -17,10 +17,14 @@ def run_command(device_type, ip, username, password, secret, timing):
             elif i == "end":
                 conn.exit_config_mode()
             else:
-                print(conn.send_command(i))#_timing(i, delay_factor=timing))
+                if timing == "":
+                    print(conn.send_command(i))  # _timing(i, delay_factor=timing))
+                else:
+                    print(conn.send_command_timing(i, delay_factor=timing))#_timing(i, delay_factor=timing))
+
     else:
         command_output = conn.send_command_timing(command)#,expect_string=".")
-        with open('../../../Downloads/SSH/log.txt', 'a') as f:
+        with open('log.txt', 'a') as f:
             f.write(command_output + '\r\n')
         print(command_output)
 
@@ -29,16 +33,16 @@ if __name__ == '__main__':
     print(netmiko.__version__)
     timing = input("Input timing modifier:")
     if timing == "":
-        timing = 1
+        pass
     else:
         timing = float(timing)
     command = input("Input command to run:")
     if "~" in command:
         command = command.split("~")
-    with open('../../../Downloads/SSH/log.txt', 'w') as f:
+    with open('log.txt', 'w') as f:
         f.write('')
     switch_list = {}
-    with open('../../../Downloads/SSH/switch_list.txt', 'r') as f:
+    with open('switch_list.txt', 'r') as f:
         r = reader(f)
         next(r, None)
         for row in r:
