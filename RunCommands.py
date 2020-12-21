@@ -23,10 +23,10 @@ def run_command(device_type, ip, username, password, secret, timing):
                     print(conn.send_command_timing(i, delay_factor=timing))#_timing(i, delay_factor=timing))
 
     else:
-        command_output = conn.send_command_timing(command)#,expect_string=".")
-        with open('log.txt', 'a') as f:
-            f.write(command_output + '\r\n')
-        print(command_output)
+        if timing == "":
+            print(conn.send_command(command))  # _timing(i, delay_factor=timing))
+        else:
+            print(conn.send_command_timing(command, delay_factor=timing))  # _timing(i, delay_factor=timing))
 
 
 if __name__ == '__main__':

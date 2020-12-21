@@ -1,9 +1,6 @@
 import netmiko
 import textfsm
 from csv import reader
-import traceback
-import pickle
-import time
 import socket
 from copy import deepcopy
 
