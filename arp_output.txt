@@ -1,2 +1,0 @@
-10.100.9.252	58EF68E5F921	BelkinIn, Belkin International Inc.
-10.100.9.253	34C0F9747A40	Rockwell, Rockwell Automation

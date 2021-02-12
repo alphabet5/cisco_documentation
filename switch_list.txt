@@ -1,4 +1,4 @@
 device_type,ip,username,password,enable secret
-cisco_ios,
-cisco_ios_telnet,
-cisco_s300
+cisco_ios,1.2.3.4,admin,password,password
+cisco_ios_telnet,1.2.3.5,admin,password,password
+cisco_s300,1.2.3.6,admin,password,password
