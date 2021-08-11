@@ -1,0 +1,2 @@
+switch,driver,transport
+192.168.1.1,ios,ssh

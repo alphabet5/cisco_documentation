@@ -1,22 +1,20 @@
 # cisco_documentation
 
-Old Automated Documentation Method for Cisco Devices
-
-This is no longer maintained. New processes are in development for documentation.
+Documentation Method for Cisco Devices using excel.
 
 # Requirements
 
 - python3 (3.9)
-- ciscoconfparse
-- netmiko
-- ntc-templates
+- pip
+- cisco-documentation
 
 # Usage
 
 For CiscoDocumentation
 
 - Update switch_list.txt with a complete list of switches.
-  - Device types supported include cisco_ios (ssh), cisco_ios_telnet (telnet), and cisco_s300 (ssh).
+  - Device types supported include cisco_ios (ssh), cisco_ios_telnet (telnet)
+  - Cisco s300 will need aditional changes before it will work.
 - Run the .exe, or run python3.9 ./CiscoDocumentation.py
 - Select 'y' to use the switch_list.txt as input.
 - This will output the arp tables from the switches, as well as the devices connected to each port, and port statuses to output.csv
@@ -37,3 +35,12 @@ For RunCommands
 - Device information should be contained in a sheet named after each l2 network. 
 - L2 networks should be named, vlans/ranges assigned on the OVERVIEW sheet.
 
+## Building and installing from source
+
+```bash
+python3.9 -m pip uninstall cisco-documentation
+python3.9 setup.py bdist_wheel --universal
+python3.9 -m pip install dist/cisco_documentation-*-py2.py3-none-any.whl
+# To upload to pypi
+twine upload dist/*
+```

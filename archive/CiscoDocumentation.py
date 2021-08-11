@@ -27,8 +27,8 @@ def load_wireshark_oui():
         import requests
         url = 'https://code.wireshark.org/review/gitweb?p=wireshark.git;a=blob_plain;f=manuf'
         myfile = requests.get(url)
-        open('./wireshark_oui_dl.txt', 'wb').write(myfile.content)
-        f_in = open('./wireshark_oui_dl.txt', 'r')
+        open('../wireshark_oui_dl.txt', 'wb').write(myfile.content)
+        f_in = open('../wireshark_oui_dl.txt', 'r')
         oui = filter(None, (line.partition('#')[0].rstrip() for line in f_in))
         oui_dict = dict()
         for line in oui:
@@ -42,7 +42,7 @@ def load_wireshark_oui():
                         oui_dict[mac_prefix[0:6]] = dict()
                     oui_dict[mac_prefix[0:6]][part[0]] = part[2].replace('\t', ', ')
     except:
-        f_in = open('wireshark_oui.txt', 'r')
+        f_in = open('../wireshark_oui.txt', 'r')
         oui = filter(None, (line.partition('#')[0].rstrip() for line in f_in))
         oui_dict = dict()
         for line in oui:
@@ -184,11 +184,11 @@ def update_documentation(device_type, ip, username, password, secret, global_del
 
     if device_type != 'cisco_s300':
         arp_table_cmd = conn.send_command('sh ip arp')
-        ip_int_status = textfsm.TextFSM(open('./cisco_ios_show_interfaces_status.template')).ParseText(ip_int_status_cmd)
-        mac_address_table = textfsm.TextFSM(open('./cisco_ios_show_mac-address-table.template')).ParseText(mac_address_table_cmd)
-        arp_table = textfsm.TextFSM(open('./cisco_ios_show_ip_arp.template')).ParseText(arp_table_cmd)
+        ip_int_status = textfsm.TextFSM(open('cisco_ios_show_interfaces_status.template')).ParseText(ip_int_status_cmd)
+        mac_address_table = textfsm.TextFSM(open('cisco_ios_show_mac-address-table.template')).ParseText(mac_address_table_cmd)
+        arp_table = textfsm.TextFSM(open('cisco_ios_show_ip_arp.template')).ParseText(arp_table_cmd)
         try:
-            cdp_neighbors = textfsm.TextFSM(open('./cisco_ios_show_cdp_neighbors_detail.template')).ParseText(
+            cdp_neighbors = textfsm.TextFSM(open('cisco_ios_show_cdp_neighbors_detail.template')).ParseText(
                 conn.send_command('sh cdp neigh detail'))
         except:
             print("CDP Error")
@@ -196,7 +196,7 @@ def update_documentation(device_type, ip, username, password, secret, global_del
             print(traceback.format_exc())
         try:
             lldp_neighbors = textfsm.TextFSM(open(
-                './cisco_ios_show_lldp_neighbors_detail.template')).ParseTextToDicts(
+                'cisco_ios_show_lldp_neighbors_detail.template')).ParseTextToDicts(
                 conn.send_command('sh lldp neigh detail'))
         except:
             print("LLDP Error")
@@ -232,7 +232,7 @@ def update_documentation(device_type, ip, username, password, secret, global_del
                     if try_lldp_non_det:
                         lldp_neighbors_non_det_cmd = conn.send_command('sh lldp neigh')
                         lldp_neighbors_non_det = textfsm.TextFSM(open(
-                            './cisco_ios_show_lldp_neighbors.template')).ParseTextToDicts(lldp_neighbors_non_det_cmd)
+                            'cisco_ios_show_lldp_neighbors.template')).ParseTextToDicts(lldp_neighbors_non_det_cmd)
                         for lldp_entry in lldp_neighbors_non_det:
                             if normalize_interface_names(lldp_entry['LOCAL_INTERFACE']) == interface['int']:
                                 interface['neighbor'] = lldp_entry['NEIGHBOR'] + ' - ' + lldp_entry['NEIGHBOR_INTERFACE']
@@ -264,7 +264,7 @@ def update_documentation(device_type, ip, username, password, secret, global_del
         for arp in arp_table:
             mac_clean_upper = arp[2].upper().replace(".", "")
             print(arp[0] + '\t' + mac_clean_upper + '\t' + oui_lookup(mac_clean_upper, oui_dict))
-            with open('./arp_output.txt', 'a') as arp_file:
+            with open('../arp_output.txt', 'a') as arp_file:
                 arp_file.write(arp[0] + '\t' + mac_clean_upper + '\t' + oui_lookup(mac_clean_upper, oui_dict) + '\n')
         # write the interfaces to the output file.
         for i in interfaces:
@@ -286,14 +286,14 @@ def update_documentation(device_type, ip, username, password, secret, global_del
                            mac_address.replace('.', '').upper() + '\t' + \
                            i['vlan']
                 print(out_line)
-                with open('./output.txt', 'a') as output_file:
+                with open('../output.txt', 'a') as output_file:
                     output_file.write(out_line + '\n')
     else:
-        ip_int_status = textfsm.TextFSM(open('./cisco_s300_show_interfaces_status.template')).ParseTextToDicts(
+        ip_int_status = textfsm.TextFSM(open('cisco_s300_show_interfaces_status.template')).ParseTextToDicts(
             ip_int_status_cmd)
-        mac_address_table = textfsm.TextFSM(open('./cisco_s300_show_mac_address_table.template')).ParseTextToDicts(
+        mac_address_table = textfsm.TextFSM(open('cisco_s300_show_mac_address_table.template')).ParseTextToDicts(
             mac_address_table_cmd)
-        lldp_neighbors = textfsm.TextFSM(open('./cisco_s300_show_lldp_neighbors.template')).ParseTextToDicts(
+        lldp_neighbors = textfsm.TextFSM(open('cisco_s300_show_lldp_neighbors.template')).ParseTextToDicts(
             conn.strip_ansi_escape_codes(conn.send_command_timing('sh lldp neigh')))
         config = conn.strip_ansi_escape_codes(conn.send_command_timing('sh run', delay_factor=2))
         int_vlans = dict()
@@ -367,7 +367,7 @@ def update_documentation(device_type, ip, username, password, secret, global_del
                     print(traceback.format_exc())
                     breakpoint()
                 print(out_line)
-                with open('./output.txt', 'a') as output_file:
+                with open('../output.txt', 'a') as output_file:
                     output_file.write(out_line + '\n')
 
 
@@ -386,12 +386,12 @@ if __name__ == '__main__':
     if multiple_devices == 'y':
         device_error_list = ""
         switch_list = {}
-        with open('./switch_list.txt', 'r') as f:
+        with open('../switch_list.txt', 'r') as f:
             r = reader(f)
             next(r, None)
             # erases the output file, and opens it to write.
-            open('./output.txt', 'w').close()
-            open('./arp_output.txt', 'w').close()
+            open('../output.txt', 'w').close()
+            open('../arp_output.txt', 'w').close()
             for row in r:
                 device_type, ip, username, password, secret = row
                 print(ip)
@@ -417,6 +417,6 @@ if __name__ == '__main__':
         username = input("Username:")  # 'cybertrol'
         password = input("Password:")  # 'AlmAdmin_123!'
         secret = input("Enable Secret:")
-        output_file = open('./output.txt', 'w')
-        arp_file = open('./arp_output.txt', 'w')
+        output_file = open('../output.txt', 'w')
+        arp_file = open('../arp_output.txt', 'w')
         update_documentation(device_type, ip, username, password, secret, global_delay, oui_dict)

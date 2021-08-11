@@ -4,11 +4,11 @@ import traceback
 
 
 def run_command(device_type, ip, username, password, secret, timing):
-    conn = netmiko.ConnectHandler(device_type=device_type, ip=ip, username=username, password=password, secret=secret, global_delay_factor=0)
+    conn = netmiko.ConnectHandler(device_type=device_type, ip=ip, username=username, password=password, secret=secret, global_delay_factor=3)
     hostname = conn.find_prompt()
     if hostname[-1:] == ">":
         conn.enable()
-    conn.send_command('term no width')
+    conn.send_command_timing('term no width')
     if type(command) == list:
         for i in command:
             print(i)
@@ -18,7 +18,7 @@ def run_command(device_type, ip, username, password, secret, timing):
                 conn.exit_config_mode()
             else:
                 if timing == "":
-                    print(conn.send_command(i))  # _timing(i, delay_factor=timing))
+                    print(conn.send_command(i, expect_string="#"))  # _timing(i, delay_factor=timing))
                 else:
                     print(conn.send_command_timing(i, delay_factor=timing))#_timing(i, delay_factor=timing))
 
@@ -39,10 +39,10 @@ if __name__ == '__main__':
     command = input("Input command to run:")
     if "~" in command:
         command = command.split("~")
-    with open('log.txt', 'w') as f:
+    with open('../log.txt', 'w') as f:
         f.write('')
     switch_list = {}
-    with open('switch_list.txt', 'r') as f:
+    with open('./switch_list.txt', 'r') as f:
         r = reader(f)
         next(r, None)
         for row in r:
