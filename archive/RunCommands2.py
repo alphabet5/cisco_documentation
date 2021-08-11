@@ -32,35 +32,32 @@ def run_command(input_dict):
     if not is_open(ip,port):
         return output.append("port " + str(port) + " isn't open")
     try:
-        if username!='' and secret=='':
-            conn = netmiko.ConnectHandler(device_type=device_type, ip=ip, username=username, password=password, global_delay_factor=0)  # 2 options cisco_ios_telnet/cisco_ios
-        elif username=='' and secret!='':
-            conn = netmiko.ConnectHandler(device_type=device_type, ip=ip, password=password, secret=secret, global_delay_factor=0)  # 2 options cisco_ios_telnet/cisco_ios
-        elif username=='' and secret=='':
-            conn = netmiko.ConnectHandler(device_type=device_type, ip=ip, password=password, global_delay_factor=0)  # 2 options cisco_ios_telnet/cisco_ios
-        else:
-            conn = netmiko.ConnectHandler(device_type=device_type, ip=ip, username=username, password=password, secret=secret, global_delay_factor=0) #2 options cisco_ios_telnet/cisco_ios
+        conn = netmiko.ConnectHandler(device_type=device_type, ip=ip, username=username, password=password,
+                                      secret=secret, global_delay_factor=3)
         hostname = conn.find_prompt()
         if hostname[-1:] == ">":
             conn.enable()
-        conn.send_command('term no width')
+        conn.send_command_timing('term no width')
         if type(command) == list:
             for i in command:
-                output.append(i)
+                print(ip, i)
                 if i == "conf t":
                     conn.config_mode()
                 elif i == "end":
                     conn.exit_config_mode()
                 else:
-                    output.append(conn.send_command_timing(i,delay_factor=timing))
-        else:
-            command_output = conn.send_command_timing(command,delay_factor=timing)#,expect_string=".")
+                    if timing == "":
+                        print(ip, conn.send_command(i, expect_string="#"))  # _timing(i, delay_factor=timing))
+                    else:
+                        print(ip, conn.send_command_timing(i, delay_factor=timing))  # _timing(i, delay_factor=timing))
 
-            #conn.send_command("clear counters", expect_string="\[confirm\]")
-            #conn.send_command("\n", expect_string="#")
-            output.append(command_output)
+        else:
+            if timing == "":
+                print(ip, conn.send_command(command))  # _timing(i, delay_factor=timing))
+            else:
+                print(ip, conn.send_command_timing(command, delay_factor=timing))  # _timing(i, delay_factor=timing))
     except:
-        output.append(traceback.format_exc())
+        print(ip, traceback.format_exc())
     return output
 
 
@@ -79,7 +76,7 @@ if __name__ == '__main__':
     if "~" in command:
         command = command.split("~")
     switch_list = []
-    with open('../../../Downloads/SSH/switch_list_saputo.txt', 'r') as f:
+    with open('../switch_list.txt', 'r') as f:
         r = reader(f)
         next(r, None)
         for row in r:

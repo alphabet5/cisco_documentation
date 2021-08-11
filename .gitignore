@@ -3,3 +3,9 @@
 .idea/workspace.xml
 arp_output.txt
 output.txt
+build/*
+cisco_documentation.egg-info/*
+log.txt
+output.csv
+output.json
+

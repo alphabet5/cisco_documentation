@@ -1,0 +1,25 @@
+---
+excel-template:
+  help: Create the excel documentation template in the cwd.
+  default: False
+  action: 'store_true'
+switch-list:
+  help: Specify the switch list to use to collect documentation.
+  default: 'switch-list.txt'
+  type: str
+load-creds:
+  help: Load credentials into the keystore from this text document. (switch-ip,username,password)
+  default: ''
+  type: str
+output-dir:
+  help: Set the output directory for switch configs, arp table output, etc.
+  default: './'
+  type: str
+fetch-info:
+  help: Fetch information from the switches (outputs to output.json)
+  default: False
+  action: 'store_true'
+parse-info:
+  help: Parses stored info from output.json and outputs output.csv
+  default: False
+  action: 'store_true'
