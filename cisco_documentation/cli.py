@@ -1,4 +1,5 @@
 import sys
+import netmiko.ssh_exception
 import yamlarg
 import os
 import shutil
@@ -10,6 +11,11 @@ import json
 import keyring
 from napalm.base.helpers import canonical_interface_name
 from joblib import Parallel, delayed
+
+#Set rich to be the default method for printing tracebacks.
+from rich.traceback import install
+install(show_locals=True)
+
 #import asyncio
 #from aiomultiprocess import Pool
 
@@ -23,14 +29,19 @@ def is_open(ip,port):
       return False
 
 
+def setpass(service, username):
+    import keyring
+    import getpass
+    keyring.set_password(service,
+                         username,
+                         getpass.getpass('Enter the ' + username + ' for ' + service + ': '))
+
+
 def get_or_set_password(service, username):
     import keyring
     creds = keyring.get_password(service, username)
     if creds is None:
-        import getpass
-        keyring.set_password(service,
-                             username,
-                             getpass.getpass('Enter the password for ' + service + ', username:' + username + ':'))
+        setpass(service, username)
         creds = keyring.get_password(service, username)
     return creds
 
@@ -91,11 +102,21 @@ def oui_lookup(mac_address, oui_dict):
 def collect_sw_info(switch):
     sw_ip = switch['switch']
     device_info = dict()
-    un = get_or_set_password(switch['switch'], 'username')
-    pw = get_or_set_password(switch['switch'], 'password')
     driver = get_network_driver(switch['driver'])
-    device = driver(switch['switch'], un, pw, optional_args={'global_delay_factor': 2, 'transport': switch['transport']})
-    device.open()
+
+    while True:
+        try:
+            un = get_or_set_password(switch['switch'], 'username')
+            pw = get_or_set_password(switch['switch'], 'password')
+            device = driver(switch['switch'], un, pw,
+                            optional_args={'global_delay_factor': 2, 'transport': switch['transport']})
+            device.open()
+            break
+        except netmiko.ssh_exception.AuthenticationException:
+            print("Authentication Failed.")
+            setpass(switch['switch'], 'username')
+            setpass(switch['switch'], 'password')
+
     device_info['facts'] = device.get_facts()
     device_info['full-config'] = device.get_config(full=True)
     device_info['config'] = device.get_config()

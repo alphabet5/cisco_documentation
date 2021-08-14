@@ -3,9 +3,12 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+with open('cisco_documentation/VERSION', 'r') as f:
+    version = f.read()
+
 setuptools.setup(
     name="cisco-documentation",
-    version="0.0.1",
+    version=version,
     author="John Burt",
     author_email="johnburt.jab@gmail.com",
     description="Gather information from switches to create documentation in excel.",
