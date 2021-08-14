@@ -8,4 +8,4 @@ cisco_documentation.egg-info/*
 log.txt
 output.csv
 output.json
-
+dist/*

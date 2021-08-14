@@ -1,22 +1,34 @@
-# cisco_documentation
+# cisco-documentation
 
 Documentation Method for Cisco Devices using excel.
 
-# Requirements
+## Requirements
 
 - python3 (3.9)
 - pip
 - cisco-documentation
 
-# Usage
+## Installation
+
+```bash
+python3.9 -m pip install cisco-documentation
+```
+
+## Updating
+
+```bash
+pip install --upgrade --upgrade-strategy eager cisco-documentation
+```
+
+## Usage
 
 For CiscoDocumentation
 
-- Update switch_list.txt with a complete list of switches.
+- Update switch-list.txt with a complete list of switches.
   - Device types supported include cisco_ios (ssh), cisco_ios_telnet (telnet)
-  - Cisco s300 will need aditional changes before it will work.
+  - Cisco s300 will need additional changes before it will work.
 - Run the .exe, or run python3.9 ./CiscoDocumentation.py
-- Select 'y' to use the switch_list.txt as input.
+- Select 'y' to use the switch-list.txt as input.
 - This will output the arp tables from the switches, as well as the devices connected to each port, and port statuses to output.csv
 
 For RunCommands
@@ -38,7 +50,8 @@ For RunCommands
 ## Building and installing from source
 
 ```bash
-python3.9 -m pip uninstall cisco-documentation
+python3.9 -m pip uninstall cisco-documentation -y
+rm dist/cisco_documentation-*-py2.py3-none-any.whl
 python3.9 setup.py bdist_wheel --universal
 python3.9 -m pip install dist/cisco_documentation-*-py2.py3-none-any.whl
 # To upload to pypi
