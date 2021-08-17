@@ -29,6 +29,8 @@ setuptools.setup(
                       'yamlarg',
                       'keyring',
                       'ntc_templates',
-                      'aiomultiprocess',
-                      'joblib'],
+                      # 'aiomultiprocess',
+                      'joblib',
+                      'requests',
+                      'openpyxl'],
 )

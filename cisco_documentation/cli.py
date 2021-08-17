@@ -11,6 +11,7 @@ import json
 import keyring
 from napalm.base.helpers import canonical_interface_name
 from joblib import Parallel, delayed
+from datetime import datetime
 
 #Set rich to be the default method for printing tracebacks.
 from rich.traceback import install
@@ -62,7 +63,7 @@ def get_oui_dict(pkgdir):
     oui_dict = dict()
     for line in oui:
         part = line.partition('\t')
-        if "IEEE Registration Authority" not in part[2]:
+        if 'IEEE Registration Authority' not in part[2]:
             mac_prefix = part[0].replace(':', '').replace('.', '')
             if len(mac_prefix) == 6:
                 oui_dict[mac_prefix] = part[2].replace('\t', ', ')
@@ -70,6 +71,7 @@ def get_oui_dict(pkgdir):
                 if mac_prefix[0:6] not in oui_dict.keys():
                     oui_dict[mac_prefix[0:6]] = dict()
                 oui_dict[mac_prefix[0:6]][part[0]] = part[2].replace('\t', ', ')
+    return oui_dict
 
 
 def mac_to_bits(mac_address):
@@ -96,7 +98,7 @@ def oui_lookup(mac_address, oui_dict):
                 if mac_subnet(mac_address, subnet):
                     return company
     else:
-        return "(Unknown)"
+        return '(Unknown)'
 
 
 def collect_sw_info(switch):
@@ -113,7 +115,7 @@ def collect_sw_info(switch):
             device.open()
             break
         except netmiko.ssh_exception.AuthenticationException:
-            print("Authentication Failed.")
+            print('Authentication Failed.')
             setpass(switch['switch'], 'username')
             setpass(switch['switch'], 'password')
 
@@ -146,6 +148,12 @@ def main():
 
     args = yamlarg.parse(os.path.join(pkgdir, 'arguments.yaml'))
 
+    if args['update_wireshark_oui']:
+        import requests
+        url = 'https://gitlab.com/wireshark/wireshark/raw/master/manuf'
+        myfile = requests.get(url)
+        open(os.path.join(pkgdir, 'templates/wireshark_oui.txt'), 'wb').write(myfile.content)
+
     if args['load_creds'] != '':
         with open(args['load_creds'], 'r') as csvfile:
             creds = csv.DictReader(csvfile, fieldnames=['ip', 'username', 'password'], delimiter=',')
@@ -156,9 +164,10 @@ def main():
 
     if args['excel_template']:
         dstfile = './Customer City, ST - IP Address Listing.xlsx'
-        pkgfile = '/templates/Customer City, ST - IP Address Listing.xlsx'
+        pkgfile = 'templates/Customer City, ST - IP Address Listing.xlsx'
         if not os.path.isfile(dstfile):
             shutil.copy(os.path.join(pkgdir, pkgfile), dstfile)
+
     if args['fetch_info']:
         info = dict()
         with open(args['switch_list'], 'r') as csvfile:
@@ -167,7 +176,7 @@ def main():
             switch_list = [switch for switch in switches]
             # async with Pool() as pool:
             #     results = await pool.map(collect_sw_info, switch_list)
-            results = Parallel(n_jobs=len(switch_list), verbose=0, backend="threading")(
+            results = Parallel(n_jobs=len(switch_list), verbose=0, backend='threading')(
                 map(delayed(collect_sw_info), switch_list))
             for result in results:
                 ip = result[0]
@@ -175,10 +184,12 @@ def main():
                 info[ip] = device_info
         with open(os.path.join(args['output_dir'], 'output.json'), 'w') as f:
             f.write(json.dumps(info))
+
     if args['parse_info']:
         with open(os.path.join(args['output_dir'], 'output.json'), 'r') as f:
             info = json.loads(f.read())
         output_dict = dict()
+        output_arp = list()
         for sw_ip, device_info in info.items():
             output_dict[sw_ip] = dict()
             # Save config files.
@@ -212,6 +223,11 @@ def main():
                 for vlan in device_info['vlans']:
                     if interface in device_info['vlans'][vlan]['interfaces']:
                         output_dict[sw_ip]['interfaces'][interface]['vlans'].append(vlan)
+                for entry in device_info['arp']:
+                    if 'mac' in entry.keys() and 'ip' in entry.keys():
+                        output_arp.append([entry['ip'],
+                                           entry['mac'].upper().replace(':','').replace('.',''),
+                                           oui_lookup(entry['mac'], oui_dict)])
         with open(os.path.join(args['output_dir'], 'output.csv'), 'w') as f:
             f.write('name\tip\tint\tdevices\tdescription\tenabled/up\tneighbor\tspeed\tduplex\tmac\tvlans\n')
             for sw_ip, device_info in output_dict.items():
@@ -232,3 +248,93 @@ def main():
                                   ','.join(int_info['vlans'])]
                         f.write('\t'.join(output) + '\n')
                         device += 1
+        with open(os.path.join(args['output_dir'], 'arp_output.csv'), 'w') as f:
+            f.writelines(','.join(entry) for entry in output_arp)
+
+        if args['update_excel'] != '':
+            from openpyxl import load_workbook
+            from openpyxl.worksheet.table import Table, TableStyleInfo
+            wb = load_workbook(args['update_excel'])
+            del wb['SWITCHES']
+            ws = wb.create_sheet('SWITCHES')
+            ws.append(['', 'SWITCH', 'SW IP', 'INT', 'DEVICE', 'DESCRIPTION',
+                       'LINE PROTO', 'NEIGHBOR & PORT', 'SPEED', 'DUPLEX', 'MAC',
+                       'VLAN', 'IP LOOKUP', 'NETWORK', 'INTEGRATOR',
+                       'DEVICE / APPLICATION', 'DEVICE DESCRIPTION',
+                       'DEVICE NAME'])
+
+            for sw_ip, device_info in output_dict.items():
+                for interface, int_info in device_info['interfaces'].items():
+                    device = 0
+                    for mac in int_info['mac']:
+                        # name,ip,int,devices,description,enabled/up,neighbor,speed,duplex,mac,vlans
+                        output = ['', # first column is left for navigation links.
+                                  device_info['hostname'],
+                                  sw_ip,
+                                  interface,
+                                  str(device),
+                                  int_info['description'],
+                                  int_info['enabled/up'],
+                                  int_info['neighbor'],
+                                  str(int_info['speed']),
+                                  '' if int_info['duplex'] == [] else int_info['duplex'][0],
+                                  mac.replace(':', ''),
+                                  ','.join(int_info['vlans'])]
+                        ws.append(output)
+                        device += 1
+            for row in range(2, ws.max_row):
+                ws.cell(row=row, column=13,
+                        value='=IFERROR(INDEX(ARP!A:A,MATCH(SWITCHES!K' + str(row) + ',ARP!B:B,0)),"")')
+                ws.cell(row=row, column=13,
+                        value='=IFERROR(INDEX(OVERVIEW!B:B,MATCH(L' + str(row) + ',OVERVIEW!D:D,0)),"")')
+                ws.cell(row=row, column=13,
+                        value='=IF(M' + str(row) + '<>"",INDEX(INDIRECT(N' + str(row) + '&"!B1:B99999"),MATCH(M' + str(row) + ',INDIRECT(N' + str(row) + '&"!F1:F99999"),0)),"")')
+                ws.cell(row=row, column=13,
+                        value='=IF(M' + str(row) + '<>"",INDEX(INDIRECT(N' + str(row) + '&"!C1:C99999"),MATCH(M' + str(row) + ',INDIRECT(N' + str(row) + '&"!F1:F99999"),0)),"")')
+                ws.cell(row=row, column=13,
+                        value='=IF(M' + str(row) + '<>"",INDEX(INDIRECT(N' + str(row) + '&"!D1:D99999"),MATCH(M' + str(row) + ',INDIRECT(N' + str(row) + '&"!F1:F99999"),0)),"")')
+                ws.cell(row=row, column=13,
+                        value='=IF(M' + str(row) + '<>"",INDEX(INDIRECT(N' + str(row) + '&"!E1:E99999"),MATCH(M' + str(row) + ',INDIRECT(N' + str(row) + '&"!F1:F99999"),0)),"")')
+
+            ws['A1'].hyperlink = 'OVERVIEW!A1'
+            ws['A1'].value = 'OVERVIEW'
+            ws['A1'].style = 'Hyperlink'
+            ws['A2'].hyperlink = "'OVERVIEW SWITCHES'!A1"
+            ws['A2'].value = 'OVERVIEW SWITCHES'
+            ws['A2'].style = 'Hyperlink'
+            tab = Table(displayName="SWITCHES", ref="B1:R" + str(ws.max_row))
+            style = TableStyleInfo(name="Table Style Light 1",
+                                   showFirstColumn=False,
+                                   showLastColumn=False,
+                                   showRowStripes=True,
+                                   showColumnStripes=True)
+            tab.tableStyleInfo = style
+            ws.add_table(tab)
+            col_widths = {'A': 120,
+                          'B': 160,
+                          'C': 90,
+                          'D': 123,
+                          'E': 54,
+                          'F': 260,
+                          'G': 84,
+                          'H': 360,
+                          'I': 50,
+                          'J': 65,
+                          'K': 85,
+                          'L': 53,
+                          'M': 90,
+                          'N': 90,
+                          'O': 120,
+                          'P': 150,
+                          'Q': 250,
+                          'R': 120}
+            for col, width in col_widths.items():
+                ws.column_dimensions[col].width = width / 6
+
+            ws = wb['ARP']
+            ws.append([datetime.now()])
+            for entry in output_arp:
+                ws.append(entry)
+            wb.save(args['update_excel'])
+
+

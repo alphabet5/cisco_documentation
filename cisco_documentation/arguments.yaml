@@ -16,10 +16,18 @@ output-dir:
   default: './'
   type: str
 fetch-info:
-  help: Fetch information from the switches (outputs to output.json)
+  help: Fetch information from the switches (outputs to OUTPUT_DIR/output.json)
   default: False
   action: 'store_true'
 parse-info:
-  help: Parses stored info from output.json and outputs output.csv
+  help: Parses stored info from OUTPUT_DIR/output.json and outputs OUTPUT_DIR/output.csv
   default: False
   action: 'store_true'
+update-wireshark-oui:
+  help: This updates the wireshark oui list to identify vendors based on the device mac address.
+  default: False
+  action: 'store_true'
+update-excel:
+  help: This is the filename to update the 'SWITCHES' and 'ARP' sheets of the specified workbook automatically. This perminently erases the current 'SWITCHES' worksheet. This only appends values to the 'ARP' sheet.
+  type: str
+  default: ''
