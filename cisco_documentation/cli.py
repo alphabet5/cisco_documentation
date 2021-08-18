@@ -511,7 +511,7 @@ def jinja_merge():
       - no snmp-server community public ro
     192.168.1.1: # switch specific
       - interface range Fa1/1-8: "switchport mode access\nswitchport access vlan 1\nspanning-tree portfast\nspanning-tree bpdug en"
-      - interface Gi1/1: "switchport mode access\ndescription example\nno switchport trunk native vlan\nno switchport trunk allowed vlans"
+      - interface Gi1/1: "switchport mode access\ndescription example\nno switchport trunk native vlan\nno switchport trunk allowed vlan"
       - username admin privilege 15 secret password
       - hostname this-is-a-test
     
