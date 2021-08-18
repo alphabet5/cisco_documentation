@@ -81,7 +81,7 @@ twine upload dist/*
 
 ## Changelog
 
-0.0.5
+### 0.0.5
 - Updated readme to fix some outdated information.
 - Updated the --help to add some context.
 - Updated the wireshark_oui.txt file.
@@ -90,3 +90,9 @@ twine upload dist/*
 - Added a step for creation of arp_output.csv output with the arp information.
 - Removed aiomultiprocess from requirements.
 - Added option to update an excel file directly.
+
+### 0.0.6
+- Added config-merge command.
+- Added port-descriptions command.
+- Made additional functions to re-use more code.
+- Added jinja-merge command for templating switch configurations.

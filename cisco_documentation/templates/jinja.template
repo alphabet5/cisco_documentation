@@ -1,0 +1,12 @@
+{% for section in [global_config, site_specific, switch_specific] %}
+  {% for item in section %}
+    {% if item is mapping %}
+      {% for k, v in item.items() %}
+      {{ k }}
+        {{ v }}
+      {% endfor %}
+    {% else %}
+      {{ item }}
+    {% endif %}
+{% endfor %}
+{% endfor %}

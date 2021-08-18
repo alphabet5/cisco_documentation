@@ -1,0 +1,17 @@
+---
+switch-list:
+  help: Specify the switch list to use to run the commands on.
+  default: 'switch-list.txt'
+  type: str
+parallel:
+  help: Run the commands across all switches in parallel.
+  default: False
+  action: 'store_true'
+json:
+  help: Output the results as json.
+  default: False
+  action: 'store_true'
+command:
+  help: Optionally specify the command without being prompted.
+  default: ''
+  type: str

@@ -1,0 +1,21 @@
+---
+file:
+  help: Specify the port descriptions file to update the switch configurations.
+  default: 'port-descriptions.csv'
+  type: str
+switch-list:
+  help: Specify the switch list file.
+  default: 'switch-list.txt'
+  type: str
+apply:
+  help: Apply the port descriptions to the switch. If this flag is not set, there will be no changes to the switch configurations.
+  default: False
+  action: 'store_true'
+example:
+  help: Create an example port descriptions (tab-delimited) file specified by FILE.
+  default: False
+  action: 'store_true'
+parallel:
+  help: Run all switches in parallel.
+  default: False
+  action: 'store_true'

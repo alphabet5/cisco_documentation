@@ -1,0 +1,21 @@
+---
+switch-list:
+  help: This is the list of switches used for connecting. (switch,driver,transport)
+  type: str
+  default: 'switch-list.txt'
+jinja-config:
+  help: This file is for the values to populate the jinja template.
+  type: str
+  default: 'jinja-config.yaml'
+global-config:
+  help: This file is for defaults in the 'global' section. The configurations here can be overridden by the 'global' section in the jinja-config.
+  type: str
+  default: ''
+parallel:
+  help: Configure all switches in parallel.
+  default: False
+  action: 'store_true'
+example:
+  help: This will create an example .yaml in the current working directory.
+  default: False
+  action: 'store_true'

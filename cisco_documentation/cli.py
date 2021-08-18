@@ -1,33 +1,31 @@
 import sys
-import netmiko.ssh_exception
 import yamlarg
 import os
 import shutil
-import socket
 import csv
-from napalm import get_network_driver
-from ntc_templates import parse
 import json
 import keyring
-from napalm.base.helpers import canonical_interface_name
 from joblib import Parallel, delayed
 from datetime import datetime
+import textwrap
+import yaml
 
 #Set rich to be the default method for printing tracebacks.
 from rich.traceback import install
 install(show_locals=True)
+from rich.console import Console
+console = Console()
 
-#import asyncio
-#from aiomultiprocess import Pool
 
 def is_open(ip,port):
-   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-   try:
-      s.connect((ip, int(port)))
-      s.shutdown(2)
-      return True
-   except:
-      return False
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.connect((ip, int(port)))
+        s.shutdown(2)
+        return True
+    except:
+        return False
 
 
 def setpass(service, username):
@@ -58,6 +56,7 @@ def split_interface(interface):
 
 
 def get_oui_dict(pkgdir):
+    import os
     f_in = open(os.path.join(pkgdir, 'templates/wireshark_oui.txt'), 'r')
     oui = filter(None, (line.partition('#')[0].rstrip() for line in f_in))
     oui_dict = dict()
@@ -101,11 +100,10 @@ def oui_lookup(mac_address, oui_dict):
         return '(Unknown)'
 
 
-def collect_sw_info(switch):
-    sw_ip = switch['switch']
-    device_info = dict()
+def get_device(switch):
+    import netmiko.ssh_exception
+    from napalm import get_network_driver
     driver = get_network_driver(switch['driver'])
-
     while True:
         try:
             un = get_or_set_password(switch['switch'], 'username')
@@ -115,10 +113,15 @@ def collect_sw_info(switch):
             device.open()
             break
         except netmiko.ssh_exception.AuthenticationException:
-            print('Authentication Failed.')
+            console.print('Authentication Failed.', style="magenta")
             setpass(switch['switch'], 'username')
             setpass(switch['switch'], 'password')
+    return device
 
+def collect_sw_info(switch):
+    from ntc_templates import parse
+    device_info = dict()
+    device = get_device(switch)
     device_info['facts'] = device.get_facts()
     device_info['full-config'] = device.get_config(full=True)
     device_info['config'] = device.get_config()
@@ -134,10 +137,37 @@ def collect_sw_info(switch):
         device_info['trans'] = device.cli(['show int trans'])['show int trans']
         device_info['int'] = device.cli(['show interfaces'])['show interfaces']
         device_info['int-parsed'] = parse.parse_output('cisco_ios', 'show interfaces', device_info['int'])
-    return [sw_ip, device_info]
+    return [switch['switch'], device_info]
+
+
+def get_switches(filename):
+    import csv
+    with open(filename, 'r') as csvfile:
+        switches = csv.DictReader(csvfile, fieldnames=['switch', 'driver', 'transport'], delimiter=',')
+        next(switches)
+        return [switch for switch in switches]
 
 
 def main():
+    cisco_documentation_description = textwrap.dedent("""
+    Steps to use:
+    - Create your switch-list.txt.
+    switch-list.txt:
+    "
+    switch,driver,transport
+    192.168.1.1,ios,ssh
+    "
+    - If you have a large number of switches, create a file with credentials.
+    credentials:
+    "
+    ip,username,password
+    192.168.1.1,admin,password
+    "
+    - Run the cisco-documentation command.
+    
+    Example Usage:
+    cisco-documentation --switch-list switch-list.txt --fetch-info --parse-info --update-excel excel-filename.xlsx
+    """)
     try:
         pkgdir = sys.modules['cisco_documentation'].__path__[0]
     except KeyError:
@@ -146,7 +176,7 @@ def main():
 
     oui_dict = get_oui_dict(pkgdir)
 
-    args = yamlarg.parse(os.path.join(pkgdir, 'arguments.yaml'))
+    args = yamlarg.parse(os.path.join(pkgdir, 'cisco-documentation.yaml'), description=cisco_documentation_description)
 
     if args['update_wireshark_oui']:
         import requests
@@ -170,22 +200,18 @@ def main():
 
     if args['fetch_info']:
         info = dict()
-        with open(args['switch_list'], 'r') as csvfile:
-            switches = csv.DictReader(csvfile, fieldnames=['switch', 'driver', 'transport'], delimiter=',')
-            next(switches)
-            switch_list = [switch for switch in switches]
-            # async with Pool() as pool:
-            #     results = await pool.map(collect_sw_info, switch_list)
-            results = Parallel(n_jobs=len(switch_list), verbose=0, backend='threading')(
-                map(delayed(collect_sw_info), switch_list))
-            for result in results:
-                ip = result[0]
-                device_info = result[1]
-                info[ip] = device_info
+        switch_list = get_switches(args['switch_list'])
+        results = Parallel(n_jobs=len(switch_list), verbose=0, backend='threading')(
+            map(delayed(collect_sw_info), switch_list))
+        for result in results:
+            ip = result[0]
+            device_info = result[1]
+            info[ip] = device_info
         with open(os.path.join(args['output_dir'], 'output.json'), 'w') as f:
             f.write(json.dumps(info))
 
     if args['parse_info']:
+        from napalm.base.helpers import canonical_interface_name
         with open(os.path.join(args['output_dir'], 'output.json'), 'r') as f:
             info = json.loads(f.read())
         output_dict = dict()
@@ -338,3 +364,267 @@ def main():
             wb.save(args['update_excel'])
 
 
+def run_commands_cmd(switch):
+    device = get_device(switch)
+    return [switch['switch'], device.cli(switch['commands'])]
+
+
+def run_commands():
+    run_commands_description = textwrap.dedent("""
+    This command is used to run multiple commands on a list of switches.
+    Switches should be defined in a comma-delimited file with the format of "switch,driver,transport"
+    i.e. "192.168.1.1,ios,ssh"
+    If the --parallel flag is set, it will run the set of commands on all switches at once.
+    Note: configure commands are not supported. You should use 'config-merge' instead.
+    
+    Example Usage:
+    run-commands --parallel --json --command "sh ver~sh span~sh tech"
+    
+    """)
+    try:
+        pkgdir = sys.modules['cisco_documentation'].__path__[0]
+    except KeyError:
+        import pathlib
+        pkgdir = pathlib.Path(__file__).parent.absolute()
+
+    args = yamlarg.parse(os.path.join(pkgdir, 'run-commands.yaml'), description=run_commands_description)
+    switch_list = get_switches(args['switch_list'])
+    if args['command'] == '':
+        command = console.input("Input command to run:")
+    else:
+        command = args['command']
+    if "~" in command:
+        commands = command.split("~")
+    else:
+        commands = [command]
+
+    if args['parallel']:
+        for switch in switch_list:
+            switch['commands'] = commands
+        results = Parallel(n_jobs=len(switch_list), verbose=0, backend='threading')(
+            map(delayed(run_commands_cmd), switch_list))
+        if args['json']:
+            console.print({result[0]: result[1] for result in results})
+        else:
+            for result in results:
+                for k, v in result[1].items():
+                    console.print(result[0])
+                    console.print(k)
+                    console.print(v)
+    else:
+        for switch in switch_list:
+            device = get_device(switch)
+            console.print(switch['switch'])
+            for command in commands:
+                if args['json']:
+                    console.print({'device': switch, 'command': device.cli([command])})
+                else:
+                    console.print(command)
+                    console.print(device.cli([command])[command])
+
+
+def config_merge_cmd(switch):
+    if 'file' in switch.keys():
+        if os.path.isfile(switch['file']):
+            device = get_device(switch)
+            device.load_merge_candidate(filename=switch['file'])
+            cmp = device.compare_config()
+            device.commit_config()
+    else:
+        device = get_device(switch)
+        device.load_merge_candidate(config=switch['text'])
+        cmp = device.compare_config()
+        device.commit_config()
+    return [switch['switch'], cmp]
+
+
+def config_merge():
+    config_merge_description = textwrap.dedent(r"""
+    This command is used to merge configurations across a list of switches.
+    
+    If configuration modifications differ for each switch, you can create a directory of configurations.
+    ls /config/dir
+    1.2.3.4
+    1.2.3.5
+    
+    Example:
+    config-merge --config-dir /config/dir --switch-list ./switch-list.txt
+    
+    If configuration merges will be the same for all switches, you can specify the change with --text.
+    
+    Example:
+    config-merge --config-text "interface fa1/1\nspanning-tree portfast edge\nspanning-tree bpdug en" --switch-list ./switch-list.txt
+    
+    If config-dir is specified, the configuration within --text will be ignored.
+    """)
+    try:
+        pkgdir = sys.modules['cisco_documentation'].__path__[0]
+    except KeyError:
+        import pathlib
+        pkgdir = pathlib.Path(__file__).parent.absolute()
+
+    args = yamlarg.parse(os.path.join(pkgdir, 'config-merge.yaml'), description=config_merge_description)
+    switch_list = get_switches(args['switch_list'])
+    if args['config_dir'] != '':
+        for switch in switch_list:
+            switch['file'] = os.path.join(args['config_dir'], switch['switch'])
+    elif args['config_text'] != '':
+        for switch in switch_list:
+            switch['text'] = args['config_text'].replace(r'\n', '\n')
+    if args['parallel']:
+        results = Parallel(n_jobs=len(switch_list), verbose=0, backend='threading')(
+            map(delayed(config_merge_cmd), switch_list))
+        for result in results:
+            console.print(result[0])
+            console.print(result[1])
+    else:
+        for switch in switch_list:
+            sw, cmp = config_merge_cmd(switch)
+            console.print(sw)
+            console.print(cmp)
+
+
+def jinja_merge():
+    from jinja2 import Environment, BaseLoader
+    jinja_merge_description = textwrap.dedent(r"""
+    This function can be used to template out configurations using a csv file.
+    
+    Example template:
+
+    {% for section in [global_config, site_specific, switch_specific] %}
+      {% for item in global %}
+        {% if type(item) == dict %}
+          {% for k, v in item.items() %}
+          {{ k }}
+            {{ v }}
+          {% endfor %}
+        {% else %}
+          {{ item }}
+        {% endif %}
+    {% endfor %}
+    {% endfor %}
+    
+    Example jinja yaml configuration:
+    
+    site_specific: # site specific
+      - snmp-server community private ro
+      - no snmp-server community public ro
+    192.168.1.1: # switch specific
+      - interface range Fa1/1-8: "switchport mode access\nswitchport access vlan 1\nspanning-tree portfast\nspanning-tree bpdug en"
+      - interface Gi1/1: "switchport mode access\ndescription example\nno switchport trunk native vlan\nno switchport trunk allowed vlans"
+      - username admin privilege 15 secret password
+      - hostname this-is-a-test
+    
+    For global configuration that span multiple sites, you can specify additional configuration file with --global-config
+    
+    """)
+    try:
+        pkgdir = sys.modules['cisco_documentation'].__path__[0]
+    except KeyError:
+        import pathlib
+        pkgdir = pathlib.Path(__file__).parent.absolute()
+
+    args = yamlarg.parse(os.path.join(pkgdir, 'jinja-merge.yaml'), description=jinja_merge_description)
+    if args['example']:
+        if not os.path.isfile('jinja-config.yaml'):
+            shutil.copy(os.path.join(pkgdir, 'templates/jinja-config.yaml'), 'jinja-config.yaml')
+        else:
+            console.print("Error: Destination file already exists. The file was not overwritten.", style="magenta")
+    template_file = os.path.join(pkgdir, 'templates/jinja.template')
+    config_template = Environment(loader=BaseLoader).from_string(open(template_file, 'r').read())
+    if args['global_config'] != '':
+        global_config = yaml.load(open(args['global_config'], 'r'), Loader=yaml.FullLoader)
+    else:
+        global_config = []
+    site_specific = yaml.load(open(args['jinja_config'], 'r'), Loader=yaml.FullLoader)
+    switch_list = get_switches(args['switch_list'])
+    switches_to_process = list()
+    for switch in switch_list:
+        if switch['switch'] in site_specific.keys():
+            switch['text'] = config_template.render(global_config=global_config,
+                                                    site_specific=site_specific['site_specific'],
+                                                    switch_specific=site_specific[switch['switch']])
+            switches_to_process.append(switch)
+    if args['parallel']:
+        results = Parallel(n_jobs=len(switches_to_process), verbose=0, backend='threading')(
+            map(delayed(config_merge_cmd), switches_to_process))
+        for result in results:
+            console.print(result[0])
+            console.print(result[1])
+    else:
+        for switch in switches_to_process:
+            sw, cmp = config_merge_cmd(switch)
+            console.print(sw)
+            console.print(cmp)
+
+
+    switch_list = get_switches(args['switch_list'])
+
+
+def port_description_cmd(switch):
+    device = get_device(switch)
+    device.load_merge_candidate(config=switch['text'])
+    cmp = device.compare_config()
+    device.commit_config()
+    return [switch['switch'], cmp]
+
+
+def port_descriptions():
+    port_descriptions_help = textwrap.dedent("""
+    port-descriptions.txt
+    switch,interface,description
+    192.168.1.1,Gi1/1,Put your port description here
+    
+    switch-list.txt
+    192.168.1.1,ios,ssh
+    
+    Example Usage:
+    cisco-port-descriptions --apply --parallel
+    """)
+    try:
+        pkgdir = sys.modules['cisco_documentation'].__path__[0]
+    except KeyError:
+        import pathlib
+        pkgdir = pathlib.Path(__file__).parent.absolute()
+
+    args = yamlarg.parse(os.path.join(pkgdir, 'port-descriptions.yaml'), description=port_descriptions_help)
+
+    if args['example']:
+        if not os.path.isfile(args['file']):
+            shutil.copy(os.path.join(pkgdir, 'templates/port-descriptions.csv'), args['file'])
+        else:
+            console.print("Error: Destination file already exists. The file was not overwritten.", style="magenta")
+    elif args['apply']:
+        with open(args['file']) as csvfile:
+            reader = csv.DictReader(csvfile, fieldnames=['switch', 'interface',
+                                                         'description'], delimiter=',')
+            next(reader)
+            interface_list = [interface for interface in reader]
+        switch_list = get_switches(args['switch_list'])
+
+        config_merge_dict = dict()
+        for interface in interface_list:
+            if interface['switch'] not in config_merge_dict.keys():
+                config_merge_dict[interface['switch']] = ""
+            if interface['description'] != '':
+                config_merge_dict[interface['switch']] += 'interface ' + interface['interface'] + \
+                                                          '\n description ' + interface['description'] + '\n'
+            else:
+                config_merge_dict[interface['switch']] += 'interface ' + interface['interface'] + '\n no description \n'
+        switches_to_update = list()
+        for switch in switch_list:
+            if switch['switch'] in config_merge_dict.keys():
+                switch['text'] = config_merge_dict[switch['switch']]
+                switches_to_update.append(switch)
+
+        if args['parallel']:
+            results = Parallel(n_jobs=len(switches_to_update), verbose=0, backend='threading')(
+                map(delayed(port_description_cmd), switches_to_update))
+            for result in results:
+                console.print(result[0])
+                console.print(result[1])
+        else:
+            for switch in switches_to_update:
+                sw, cmp = config_merge_cmd(switch)
+                console.print(sw)
+                console.print(cmp)
