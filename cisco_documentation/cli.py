@@ -485,7 +485,7 @@ def config_merge():
 
 
 def jinja_merge():
-    from jinja2 import Environment, BaseLoader
+    from jinja2 import Environment
     jinja_merge_description = textwrap.dedent(r"""
     This function can be used to template out configurations using a csv file.
     
@@ -531,7 +531,7 @@ def jinja_merge():
         else:
             console.print("Error: Destination file already exists. The file was not overwritten.", style="magenta")
     template_file = os.path.join(pkgdir, 'templates/jinja.template')
-    config_template = Environment(loader=BaseLoader).from_string(open(template_file, 'r').read())
+    config_template = Environment().from_string(open(template_file, 'r').read())
     if args['global_config'] != '':
         global_config = yaml.load(open(args['global_config'], 'r'), Loader=yaml.FullLoader)
     else:
