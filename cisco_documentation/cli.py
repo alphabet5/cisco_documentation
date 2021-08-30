@@ -1,4 +1,6 @@
 import sys
+
+import napalm.base.exceptions
 import yamlarg
 import os
 import shutil
@@ -121,23 +123,27 @@ def get_device(switch):
 def collect_sw_info(switch):
     from ntc_templates import parse
     device_info = dict()
-    device = get_device(switch)
-    device_info['facts'] = device.get_facts()
-    device_info['full-config'] = device.get_config(full=True)
-    device_info['config'] = device.get_config()
-    device_info['vlans'] = device.get_vlans()
-    device_info['arp'] = device.get_arp_table()
-    device_info['mac'] = device.get_mac_address_table()
-    device_info['users'] = device.get_users()
-    device_info['interfaces'] = device.get_interfaces()
-    device_info['lldp'] = device.get_lldp_neighbors_detail()
-    if switch['driver'] == 'ios' and switch['transport'] == 'ssh':
-        device_info['cdp'] = device.cli(['show cdp neighbors detail'])['show cdp neighbors detail']
-        device_info['cdp-parsed'] = parse.parse_output('cisco_ios', 'show cdp neighbors detail', device_info['cdp'])
-        device_info['trans'] = device.cli(['show int trans'])['show int trans']
-        device_info['int'] = device.cli(['show interfaces'])['show interfaces']
-        device_info['int-parsed'] = parse.parse_output('cisco_ios', 'show interfaces', device_info['int'])
-    return [switch['switch'], device_info]
+    try:
+        device = get_device(switch)
+        device_info['facts'] = device.get_facts()
+        device_info['full-config'] = device.get_config(full=True)
+        device_info['config'] = device.get_config()
+        device_info['vlans'] = device.get_vlans()
+        device_info['arp'] = device.get_arp_table()
+        device_info['mac'] = device.get_mac_address_table()
+        device_info['users'] = device.get_users()
+        device_info['interfaces'] = device.get_interfaces()
+        device_info['lldp'] = device.get_lldp_neighbors_detail()
+        if switch['driver'] == 'ios':
+            device_info['cdp'] = device.cli(['show cdp neighbors detail'])['show cdp neighbors detail']
+            device_info['cdp-parsed'] = parse.parse_output('cisco_ios', 'show cdp neighbors detail', device_info['cdp'])
+            device_info['trans'] = device.cli(['show int trans'])['show int trans']
+            device_info['int'] = device.cli(['show interfaces'])['show interfaces']
+            device_info['int-parsed'] = parse.parse_output('cisco_ios', 'show interfaces', device_info['int'])
+        return [switch['switch'], device_info]
+    except:
+        console.print('Data Collection for ' + switch['switch'] + ' failed.', style="red")
+        return False
 
 
 def get_switches(filename):
@@ -204,9 +210,12 @@ def main():
         results = Parallel(n_jobs=len(switch_list), verbose=0, backend='threading')(
             map(delayed(collect_sw_info), switch_list))
         for result in results:
-            ip = result[0]
-            device_info = result[1]
-            info[ip] = device_info
+            try:
+                ip = result[0]
+                device_info = result[1]
+                info[ip] = device_info
+            except:
+                pass
         with open(os.path.join(args['output_dir'], 'output.json'), 'w') as f:
             f.write(json.dumps(info))
 
@@ -556,9 +565,6 @@ def jinja_merge():
             sw, cmp = config_merge_cmd(switch)
             console.print(sw)
             console.print(cmp)
-
-
-    switch_list = get_switches(args['switch_list'])
 
 
 def port_description_cmd(switch):
