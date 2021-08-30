@@ -81,6 +81,20 @@ twine upload dist/*
 
 ## Changelog
 
+### 0.0.8
+- Fixed an over-indentation of the arp table generation causing large files.
+- Changed the arp_output.csv to be tab-delimited for easier copy/paste to excel.
+
+### 0.0.7
+- Added better error handling - still writes to output.json if a single connection fails.
+- Changed section to support fetching cisco specific information via telnet.
+
+### 0.0.6
+- Added config-merge command.
+- Added port-descriptions command.
+- Made additional functions to re-use more code.
+- Added jinja-merge command for templating switch configurations.
+
 ### 0.0.5
 - Updated readme to fix some outdated information.
 - Updated the --help to add some context.
@@ -90,14 +104,4 @@ twine upload dist/*
 - Added a step for creation of arp_output.csv output with the arp information.
 - Removed aiomultiprocess from requirements.
 - Added option to update an excel file directly.
-
-### 0.0.6
-- Added config-merge command.
-- Added port-descriptions command.
-- Made additional functions to re-use more code.
-- Added jinja-merge command for templating switch configurations.
-
-### 0.0.7
-- Added better error handling - still writes to output.json if a single connection fails.
-- Changed section to support fetching cisco specific information via telnet.
 

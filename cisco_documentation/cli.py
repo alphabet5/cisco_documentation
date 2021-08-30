@@ -258,11 +258,11 @@ def main():
                 for vlan in device_info['vlans']:
                     if interface in device_info['vlans'][vlan]['interfaces']:
                         output_dict[sw_ip]['interfaces'][interface]['vlans'].append(vlan)
-                for entry in device_info['arp']:
-                    if 'mac' in entry.keys() and 'ip' in entry.keys():
-                        output_arp.append([entry['ip'],
-                                           entry['mac'].upper().replace(':','').replace('.',''),
-                                           oui_lookup(entry['mac'], oui_dict)])
+            for entry in device_info['arp']:
+                if 'mac' in entry.keys() and 'ip' in entry.keys():
+                    output_arp.append([entry['ip'],
+                                       entry['mac'].upper().replace(':','').replace('.',''),
+                                       oui_lookup(entry['mac'], oui_dict)])
         with open(os.path.join(args['output_dir'], 'output.csv'), 'w') as f:
             f.write('name\tip\tint\tdevices\tdescription\tenabled/up\tneighbor\tspeed\tduplex\tmac\tvlans\n')
             for sw_ip, device_info in output_dict.items():
@@ -284,7 +284,8 @@ def main():
                         f.write('\t'.join(output) + '\n')
                         device += 1
         with open(os.path.join(args['output_dir'], 'arp_output.csv'), 'w') as f:
-            f.writelines(','.join(entry) for entry in output_arp)
+            for entry in output_arp:
+                f.write('\t'.join(entry) + '\n')
 
         if args['update_excel'] != '':
             from openpyxl import load_workbook
