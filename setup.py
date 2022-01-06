@@ -26,7 +26,8 @@ setuptools.setup(
                                       'run-commands=cisco_documentation.cli:run_commands',
                                       'cisco-port-descriptions=cisco_documentation.cli:port_descriptions',
                                       'config-merge=cisco_documentation.cli:config_merge',
-                                      'jinja-merge=cisco_documentation.cli:jinja_merge']},
+                                      'jinja-merge=cisco_documentation.cli:jinja_merge',
+                                      'ssh-creds=cisco_documentation.cli:ssh_creds']},
     include_package_data=True,
     package_data={'cisco_documentation': ['*', 'templates/*'], },
     install_requires=['napalm',
@@ -37,5 +38,7 @@ setuptools.setup(
                       'joblib',
                       'requests',
                       'openpyxl',
-                      'Jinja2'],
+                      'Jinja2',
+                      'rich',
+                      'paramiko'],
 )

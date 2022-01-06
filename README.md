@@ -81,6 +81,11 @@ twine upload dist/*
 
 ## Changelog
 
+### 0.0.9
+- Added rich to the requirements.
+- Added option to run sequentially instead of in parallel. (--parallel flag)
+- Added function and cli app to help test and save credentials.
+
 ### 0.0.8
 - Fixed an over-indentation of the arp table generation causing large files.
 - Changed the arp_output.csv to be tab-delimited for easier copy/paste to excel.

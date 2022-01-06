@@ -1,0 +1,25 @@
+---
+switch-list:
+  help: List of switches to load or validate credentials.
+  type: str
+  default: 'switch-list.txt'
+load-creds:
+  help: Load the credentials into your keychain.
+  default: False
+  action: 'store_true'
+default-user:
+  help: Specify the default user to use. If the login fails for this user, you will be prompted for credentials.
+  default: ''
+  type: str
+default-pass:
+  help: Specify the default password to use. If the login fails you will be prompted for other credentials. If this is left blank, you will be prompted for a default password.
+  default: ''
+  type: str
+save-creds:
+  help: Save the credentials to a comma-delimited file.
+  default: False
+  action: 'store_true'
+filename:
+  help: The filename used when saving credentials to a file. Default 'switch-creds.txt'
+  default: './switch-creds.txt'
+  type: str

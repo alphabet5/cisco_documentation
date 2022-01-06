@@ -1,6 +1,4 @@
 import sys
-
-import napalm.base.exceptions
 import yamlarg
 import os
 import shutil
@@ -11,6 +9,9 @@ from joblib import Parallel, delayed
 from datetime import datetime
 import textwrap
 import yaml
+import paramiko
+import socket
+import asyncio
 
 #Set rich to be the default method for printing tracebacks.
 from rich.traceback import install
@@ -102,48 +103,84 @@ def oui_lookup(mac_address, oui_dict):
         return '(Unknown)'
 
 
+def test_creds(hostname, username, password):
+    import paramiko
+    import socket
+    import time
+    # initialize SSH client
+    client = paramiko.SSHClient()
+    # add to know hosts
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(hostname=hostname, username=username, password=password, timeout=3)
+        return username, password
+    except socket.timeout:
+        console.print('Socket timeout connecting to port 22 on ' + hostname + '.', style='magenta')
+        return None
+    except paramiko.AuthenticationException:
+        return None
+    except paramiko.SSHException:
+        time.sleep(60)
+        test_creds(hostname, username, password)
+
+
 def get_device(switch):
     import netmiko.ssh_exception
     from napalm import get_network_driver
     driver = get_network_driver(switch['driver'])
+    test_default = True
     while True:
         try:
-            un = get_or_set_password(switch['switch'], 'username')
-            pw = get_or_set_password(switch['switch'], 'password')
+            if switch['default_creds'] is not None and test_default:
+                un = switch['default_creds']['user']
+                pw = switch['default_creds']['pass']
+                test_default = False
+            else:
+                un = get_or_set_password(switch['switch'], 'username')
+                pw = get_or_set_password(switch['switch'], 'password')
+            optional_args = {'global_delay_factor': 2,
+                             'transport': switch['transport']}
+            if switch['ssh_config'] != '':
+                optional_args['ssh_config_file'] = switch['ssh_config']
             device = driver(switch['switch'], un, pw,
-                            optional_args={'global_delay_factor': 2, 'transport': switch['transport']})
+                            optional_args=optional_args)
             device.open()
             break
         except netmiko.ssh_exception.AuthenticationException:
-            console.print('Authentication Failed.', style="magenta")
+            console.print('Authentication Failed.', style='magenta')
             setpass(switch['switch'], 'username')
             setpass(switch['switch'], 'password')
     return device
 
+
 def collect_sw_info(switch):
     from ntc_templates import parse
     device_info = dict()
-    try:
-        device = get_device(switch)
-        device_info['facts'] = device.get_facts()
-        device_info['full-config'] = device.get_config(full=True)
-        device_info['config'] = device.get_config()
-        device_info['vlans'] = device.get_vlans()
-        device_info['arp'] = device.get_arp_table()
-        device_info['mac'] = device.get_mac_address_table()
-        device_info['users'] = device.get_users()
-        device_info['interfaces'] = device.get_interfaces()
-        device_info['lldp'] = device.get_lldp_neighbors_detail()
-        if switch['driver'] == 'ios':
-            device_info['cdp'] = device.cli(['show cdp neighbors detail'])['show cdp neighbors detail']
-            device_info['cdp-parsed'] = parse.parse_output('cisco_ios', 'show cdp neighbors detail', device_info['cdp'])
-            device_info['trans'] = device.cli(['show int trans'])['show int trans']
-            device_info['int'] = device.cli(['show interfaces'])['show interfaces']
-            device_info['int-parsed'] = parse.parse_output('cisco_ios', 'show interfaces', device_info['int'])
-        return [switch['switch'], device_info]
-    except:
-        console.print('Data Collection for ' + switch['switch'] + ' failed.', style="red")
-        return False
+    # try:
+    device = get_device(switch)
+    device_info['facts'] = device.get_facts()
+    device_info['full-config'] = device.get_config(full=True)
+    device_info['config'] = device.get_config()
+    device_info['vlans'] = device.get_vlans()
+    device_info['arp'] = device.get_arp_table()
+    device_info['mac'] = device.get_mac_address_table()
+    device_info['users'] = device.get_users()
+    device_info['interfaces'] = device.get_interfaces()
+    device_info['lldp'] = device.get_lldp_neighbors_detail()
+    if switch['driver'] == 'ios':
+        device_info['cdp'] = device.cli(['show cdp neighbors detail'])['show cdp neighbors detail']
+        device_info['cdp-parsed'] = parse.parse_output('cisco_ios', 'show cdp neighbors detail', device_info['cdp'])
+        device_info['trans'] = device.cli(['show int trans'])['show int trans']
+        device_info['int'] = device.cli(['show interfaces'])['show interfaces']
+        device_info['int-parsed'] = parse.parse_output('cisco_ios', 'show interfaces', device_info['int'])
+        device_info['spanning-tree'] = device.cli(['show spanning-tree'])
+    if switch['additional_commands'] != '':
+        device_info['additional_commands'] = device.cli(switch['additional_commands'].split(','))
+    print("Information collected from " + switch['switch'])
+    return [switch['switch'], device_info]
+    # except:
+    #     console.print('Data Collection for ' + switch['switch'] + ' failed.', style='red')
+    #     return False
 
 
 def get_switches(filename):
@@ -169,6 +206,23 @@ def main():
     ip,username,password
     192.168.1.1,admin,password
     "
+    - To connect with an ssh jumphost, specify --ssh-config = ./ssh_config
+    "
+    host jumphost
+      IdentitiesOnly yes
+      IdentityFile ~/.ssh/id_rsa
+      User jumphostuser
+      HostName ssh.jump.host.domain.tld
+      StrictHostKeyChecking no
+    
+    host * !jumphost
+      User pyclass
+      # Force usage of this SSH config file
+      ProxyCommand ssh -F ./ssh_config -W %h:%p jumphost
+      # Alternate solution using netcat
+      #ProxyCommand ssh -F ./ssh_config jumphost nc %h %p
+      StrictHostKeyChecking no
+  "
     - Run the cisco-documentation command.
     
     Example Usage:
@@ -207,15 +261,28 @@ def main():
     if args['fetch_info']:
         info = dict()
         switch_list = get_switches(args['switch_list'])
-        results = Parallel(n_jobs=len(switch_list), verbose=0, backend='threading')(
-            map(delayed(collect_sw_info), switch_list))
-        for result in results:
-            try:
-                ip = result[0]
-                device_info = result[1]
+        if args['default_user'] != '' and args['default_pass'] != '':
+            default_creds = {'user': args['default_user'], 'pass': args['default_pass']}
+        else:
+            default_creds = None
+        for i in range(len(switch_list)):
+            switch_list[i]['default_creds'] = default_creds
+            switch_list[i]['ssh_config'] = args['ssh_config']
+            switch_list[i]['additional_commands'] = args['additional_commands']
+        if args['parallel']:
+            results = Parallel(n_jobs=len(switch_list), verbose=0, backend='threading')(
+                map(delayed(collect_sw_info), switch_list))
+            for result in results:
+                try:
+                    ip = result[0]
+                    device_info = result[1]
+                    info[ip] = device_info
+                except:
+                    pass
+        else:
+            for switch in switch_list:
+                ip, device_info = collect_sw_info(switch)
                 info[ip] = device_info
-            except:
-                pass
         with open(os.path.join(args['output_dir'], 'output.json'), 'w') as f:
             f.write(json.dumps(info))
 
@@ -400,11 +467,11 @@ def run_commands():
     args = yamlarg.parse(os.path.join(pkgdir, 'run-commands.yaml'), description=run_commands_description)
     switch_list = get_switches(args['switch_list'])
     if args['command'] == '':
-        command = console.input("Input command to run:")
+        command = console.input('Input command to run:')
     else:
         command = args['command']
-    if "~" in command:
-        commands = command.split("~")
+    if '~' in command:
+        commands = command.split('~')
     else:
         commands = [command]
 
@@ -539,7 +606,7 @@ def jinja_merge():
         if not os.path.isfile('jinja-config.yaml'):
             shutil.copy(os.path.join(pkgdir, 'templates/jinja-config.yaml'), 'jinja-config.yaml')
         else:
-            console.print("Error: Destination file already exists. The file was not overwritten.", style="magenta")
+            console.print('Error: Destination file already exists. The file was not overwritten.', style='magenta')
     template_file = os.path.join(pkgdir, 'templates/jinja.template')
     config_template = Environment().from_string(open(template_file, 'r').read())
     if args['global_config'] != '':
@@ -600,7 +667,7 @@ def port_descriptions():
         if not os.path.isfile(args['file']):
             shutil.copy(os.path.join(pkgdir, 'templates/port-descriptions.csv'), args['file'])
         else:
-            console.print("Error: Destination file already exists. The file was not overwritten.", style="magenta")
+            console.print('Error: Destination file already exists. The file was not overwritten.', style='magenta')
     elif args['apply']:
         with open(args['file']) as csvfile:
             reader = csv.DictReader(csvfile, fieldnames=['switch', 'interface',
@@ -612,7 +679,7 @@ def port_descriptions():
         config_merge_dict = dict()
         for interface in interface_list:
             if interface['switch'] not in config_merge_dict.keys():
-                config_merge_dict[interface['switch']] = ""
+                config_merge_dict[interface['switch']] = ''
             if interface['description'] != '':
                 config_merge_dict[interface['switch']] += 'interface ' + interface['interface'] + \
                                                           '\n description ' + interface['description'] + '\n'
@@ -635,3 +702,75 @@ def port_descriptions():
                 sw, cmp = config_merge_cmd(switch)
                 console.print(sw)
                 console.print(cmp)
+
+def test_creds(sw, un, pw, timeout=3):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(hostname=sw, username=un, password=pw, timeout=timeout)
+    # Pass socket.timeout exception back up a level. No need to retry authentication when the host is down / 22 is unavailable.
+    # except socket.timeout:
+        # console.print('Socket timeout for host ' + sw + '.')
+        # return False
+    except paramiko.AuthenticationException:
+        return False
+    # except paramiko.SSHException:
+    #     print(f'{BLUE}[*] Quota exceeded, retrying with delay...{RESET}')
+    #     # sleep for a minute
+    #     time.sleep(60)
+    #     return is_ssh_open(hostname, username, password)
+    else:
+        return True
+
+
+def ssh_creds():
+    ssh_creds_help = textwrap.dedent("""
+    switch-list.txt
+    192.168.1.1
+    192.168.1.2
+
+    Example Usage:
+    ssh-creds --test --load
+    cisco-port-descriptions --apply --parallel
+    """)
+    try:
+        pkgdir = sys.modules['cisco_documentation'].__path__[0]
+    except KeyError:
+        import pathlib
+        pkgdir = pathlib.Path(__file__).parent.absolute()
+    args = yamlarg.parse(os.path.join(pkgdir, 'ssh-creds.yaml'), description=ssh_creds_help)
+    with open(args['switch_list'], 'r') as f:
+        switches = [line.strip('\n') for line in f.readlines()]
+    if args['default_user'] == '':
+        default_user = console.input('Input the default username: ')
+    else:
+        default_user = args['default_user']
+    if args['default_pass'] == '':
+        default_pass = console.input('Input the default password: ', password=True)
+    else:
+        default_pass = args['default_password']
+    creds = dict()
+    for switch in switches:
+        try:
+            if test_creds(switch, default_user, default_pass):
+                creds[switch] = {'user': default_user, 'pass': default_pass}
+        except paramiko.AuthenticationException:
+            while switch not in creds.keys():
+                un = console.input('Username: ')
+                pw = console.input('Password: ', password=True)
+                try:
+                    test_creds(switch, un, pw)
+                    creds[switch] = {'user': un, 'pass': pw}
+                except paramiko.AuthenticationException:
+                    console.print('Authentication failed.')
+                except paramiko.SSHException:
+                    console.print('Authentication quota exceeded.')
+        except socket.timeout:
+            console.print('Socket timeout connecting to ' + switch + '. Skipping.')
+        except paramiko.ssh_exception.NoValidConnectionsError:
+            console.print('Error connecting to ' + switch + '. Skipping.')
+    if args['save_creds']:
+        with open(args['filename'], 'w') as f:
+            for sw in creds.keys():
+                f.write([sw, creds[sw]['user'], creds[sw]['pass']].join(',') + '\n')
+
