@@ -1,6 +1,8 @@
+
 # cisco-documentation
 
 Documentation Method for Cisco Devices using excel.
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Requirements
 
@@ -80,6 +82,13 @@ twine upload dist/*
 ```
 
 ## Changelog
+
+### 0.0.10
+- Added an option for a local keyring to default to /keyring.json if there are no valid backends. (i.e. ubuntu server default install)
+- Updated formatting to black.
+- Added generic error handling when collecting information sequentially. Failed collection will skip the device in the results.
+- Added option to collect information from a single device. (--switch)
+- Fixed run-commands by adding the default-creds options.
 
 ### 0.0.9
 - Added rich to the requirements.

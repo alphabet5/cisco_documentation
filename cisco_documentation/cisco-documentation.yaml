@@ -51,3 +51,7 @@ ssh-config:
   help: Specify an ssh config file for using a jump host to connect to the switches.
   default: ''
   type: str
+switch:
+  help: Specify a single switch to collect information from.
+  default: ''
+  type: str

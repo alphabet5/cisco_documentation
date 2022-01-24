@@ -15,3 +15,19 @@ command:
   help: Optionally specify the command without being prompted.
   default: ''
   type: str
+default-user:
+  help: Specify a default username to connect with.
+  default: ''
+  type: str
+default-pass:
+  help: Specify a default password to connect with.
+  default: ''
+  type: str
+additional-commands:
+  help: Specify comma delimited commands that will be added to output.json.
+  default: ''
+  type: str
+ssh-config:
+  help: Specify an ssh config file for using a jump host to connect to the switches.
+  default: ''
+  type: str
