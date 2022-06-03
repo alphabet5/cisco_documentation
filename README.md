@@ -81,6 +81,49 @@ python3.9 -m pip install dist/cisco_documentation-*-py2.py3-none-any.whl
 twine upload dist/*
 ```
 
+## Using an ssh jumphost
+
+To use a jumphost you need to be able to authenticate to the jumphost using an ssh key.
+
+### Setting up key authentication to a jumphost.
+
+Generate your local key.
+
+```bash
+ssh-keygen -t rsa
+```
+
+Copy the key to the remote server.
+
+```bash
+ssh-copy-id user@ip.or.dns
+```
+
+Setup the ssh_config file.
+
+```bash
+cat ~/.ssh/yourJumpHostConfigFileName
+host jumphost
+  IdentitiesOnly yes
+  IdentityFile ~/.ssh/id_rsa
+  User user
+  HostName ip.or.dns
+
+host * !jumphost
+  User admin
+  # Force usage of this SSH config file
+  ProxyCommand ssh -F ~/.ssh/yourJumpHostConfigFileName -W %h:%p jumphost
+  # Alternate solution using netcat
+  #ProxyCommand ssh -F ./ssh_config jumphost nc %h %p
+```
+
+Running the command specifying the ssh-config file. 
+
+```bash
+cisco-documentation <your other options here> --ssh-config ~/.ssh/yourJumpHostConfigFileName
+run-commands <your other options here> --ssh-config ~/.ssh/yourJumpHostConfigFileName
+```
+
 ## Changelog
 
 ### 0.0.10
