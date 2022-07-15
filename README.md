@@ -127,6 +127,9 @@ run-commands <your other options here> --ssh-config ~/.ssh/yourJumpHostConfigFil
 
 ## Changelog
 
+### 0.0.11
+- Added processing of cdp for cases where lldp does not show the neighbor.
+
 ### 0.0.10
 - Added an option for a local keyring to default to /keyring.json if there are no valid backends. (i.e. ubuntu server default install)
 - Updated formatting to black.

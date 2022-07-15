@@ -402,6 +402,17 @@ def main():
                             + " - "
                             + neighbor["remote_port"]
                         )
+                elif 'cdp-parsed' in device_info and interface in [a['local_port'] for a in device_info["cdp-parsed"]]:
+                    output_dict[sw_ip]["interfaces"][interface]["devices"] = ""
+                    output_dict[sw_ip]["interfaces"][interface]["mac"] = [""]
+                    output_dict[sw_ip]["interfaces"][interface]["neighbor"] = ""
+                    for neighbor in device_info["cdp-parsed"]:
+                        if neighbor['local_port'] == interface:
+                            output_dict[sw_ip]["interfaces"][interface]["neighbor"] += (
+                                neighbor["destination_host"]
+                                + " - "
+                                + neighbor["remote_port"]
+                            )
                 else:
                     output_dict[sw_ip]["interfaces"][interface]["devices"] = len(
                         [
